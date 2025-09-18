@@ -1,0 +1,22 @@
+{
+  "name": "restapisnode",
+  "version": "1.0.0",
+  "description": "Rest API para Tuksa",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "nodemon ./index.js"
+  },
+  "author": "Carlos Colmenares Aprendiz SENA",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "mongoose": "^8.17.0",
+    "multer": "^2.0.2",
+    "nanoid": "^5.1.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
