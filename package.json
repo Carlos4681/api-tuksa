@@ -5,13 +5,17 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "nodemon ./index.js"
+    "desarrollo": "nodemon ./index.js",
+    "start": "node ./index.js"
   },
   "author": "Carlos Colmenares Aprendiz SENA",
   "license": "ISC",
   "dependencies": {
+    "argon2": "^0.44.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.17.0",
     "multer": "^2.0.2",
     "nanoid": "^5.1.5"

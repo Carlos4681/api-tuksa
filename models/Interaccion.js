@@ -20,10 +20,10 @@ const interaccionSchema = new mongoose.Schema({
       return this.tipo !== 'Visita';
     }
   },
-  resultado: { // Ej: 'Exitosa', 'No contesta', 'Pendiente', 'Cancelada'
-    type: String,
-    trim: true,
-    // Puede ser opcional, dependiendo de la interacción
+  resultado: {
+  type: String,
+  enum: ['Exitosa', 'No contesta', 'Pendiente', 'Cancelada', 'Reprogramada'],
+  trim: true
   },
   // Referencia al cliente con el que se tuvo la interacción
   cliente: {

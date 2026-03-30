@@ -6,14 +6,14 @@ import Propiedad from '../models/Propiedad.js'; // Necesario para verificar si l
 
 // --- CREAR UNA NUEVA INTERACCION ---
 export const nuevaInteraccion = async (req, res, next) => {
-  const { tipo, descripcion, resultado, cliente, propiedad, fechaVencimiento } = req.body;
+  const { tipo, descripcion, resultado, cliente, propiedad, fechaVencimiento, fechaHora, completada } = req.body;
 
   if (!tipo || !cliente) {
     return res.status(400).json({ mensaje: 'El tipo de interacción y el cliente son obligatorios.' });
   }
 
   try {
-    const clienteExistente = await Clientes.findById(cliente); // Usar 'Cliente'
+    const clienteExistente = await Clientes.findById(cliente);
     if (!clienteExistente) {
       return res.status(404).json({ mensaje: 'Cliente no encontrado.' });
     }
@@ -34,12 +34,13 @@ export const nuevaInteraccion = async (req, res, next) => {
 
   const interaccion = new Interaccion({
     tipo,
+    fechaHora: fechaHora || new Date(), // Si no viene, usa fecha actual
     descripcion,
     resultado,
     cliente,
     propiedad,
     fechaVencimiento: tipo === 'Tarea' ? fechaVencimiento : undefined,
-    completada: tipo === 'Tarea' ? false : undefined,
+    completada: tipo === 'Tarea' ? (completada || false) : undefined,
   });
 
   try {
@@ -54,6 +55,24 @@ export const nuevaInteraccion = async (req, res, next) => {
     next(error);
   }
 };
+
+// ◙ Mostrar todas las interacciones
+const mostrarInteracciones = async (req, res, next) => {
+  try {
+    // Utilizamos .find({}) para obtener todos los documentos
+    const interacciones = await Interaccion.find({})
+      .populate('cliente', 'nombre apellido') // Incluimos info del cliente
+      .populate('propiedad', 'titulo') // Incluimos info de la propiedad si existe
+      .sort({ fechaHora: -1 }); // ⬅️ APLICAMOS EL ORDEN DESCENDENTE
+
+    res.status(200).json(interacciones);
+  } catch (error) {
+    console.error('Error al obtener todas las interacciones:', error);
+    res.status(500).json({ mensaje: 'Error al obtener las interacciones.' });
+    next(error);
+  }
+};
+
 
 // --- OBTENER INTERACCIONES DE UN CLIENTE ESPECÍFICO ---
 export const mostrarInteraccionesCliente = async (req, res, next) => {
@@ -197,11 +216,13 @@ export const mostrarTareasPendientes = async (req, res, next) => {
   }
 };
 
+
 export default {
  nuevaInteraccion,
  mostrarInteraccionesCliente,
  actualizarInteraccion,
  eliminarInteraccion,
  mostrarTareasPendientes,
- mostrarInteraccion
+ mostrarInteraccion, 
+ mostrarInteracciones
 };
