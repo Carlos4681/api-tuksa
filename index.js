@@ -36,9 +36,10 @@ const corsOptions={
 }
 
 //Habilitar Cors
-app.use(cors(
+/*app.use(cors(
   corsOptions
-));
+));*/
+app.use(cors());
 
 
 // Middleware para parsear JSON
@@ -49,6 +50,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // Servir archivos estáticos (imágenes)
 app.use('/uploads', express.static('./uploads'));
+
+app.get('/', (req, res) => {
+  res.send('API funcionando 🔥');
+});
 
 
 // Rutas de la app
