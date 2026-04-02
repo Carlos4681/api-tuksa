@@ -52,6 +52,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('./uploads'));
 
 app.get('/', (req, res) => {
+  console.log('🔥 Entró a la raíz');
   res.send('API funcionando 🔥');
 });
 
