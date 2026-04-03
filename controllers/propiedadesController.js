@@ -9,6 +9,235 @@ import fs from 'fs';
 const __dirname = path.resolve();
 const uploadDirectory = path.join(__dirname, 'uploads', 'propiedades');
 
+// 🛠️ CAMBIO 1: Asegurar que la carpeta exista físicamente en Render
+if (!fs.existsSync(uploadDirectory)) {
+    fs.mkdirSync(uploadDirectory, { recursive: true });
+}
+
+// URL base para las imágenes (Local o Render)
+const urlBackend = process.env.URL_BACKEND || 'https://api-tuksa-1.onrender.com';
+
+// ==========================
+// 📂 Configuración de Multer
+// ==========================
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDirectory); // Usamos la variable de ruta absoluta
+  },
+  filename: (req, file, cb) => {
+    const extension = file.originalname.split('.').pop();
+    const uniqueFilename = `${nanoid(10)}.${extension}`;
+    cb(null, uniqueFilename);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 1024 * 1024 * 5 // Máximo 5MB
+  },
+  fileFilter: (req, file, cb) => {
+    const esValido =
+      file.mimetype === 'image/jpeg' ||
+      file.mimetype === 'image/png' ||
+      file.mimetype === 'image/webp' ||
+      file.mimetype === 'image/gif';
+
+    cb(esValido ? null : new Error('Tipo de archivo no válido. Solo JPEG, PNG, WebP o GIF.'), esValido);
+  }
+});
+
+// ==========================
+// 📥 Middleware para subir imágenes
+// ==========================
+const subirArchivo = (req, res, next) => {
+  upload.array('fotos', 5)(req, res, function (error) {
+    if (error) {
+      return res.status(400).json({ mensaje: error.message });
+    }
+    next();
+  });
+};
+
+// ==========================
+// ➕ Crear nueva propiedad
+// ==========================
+const nuevaPropiedad = async (req, res, next) => {
+  const propiedad = new Propiedad(req.body);
+
+  try {
+    if (req.files && req.files.length > 0) {
+      propiedad.fotos = req.files.map(file => file.filename);
+    }
+
+    await propiedad.save();
+    res.json({ mensaje: 'Se agregó una nueva propiedad 🏠' });
+  } catch (error) {
+    console.log(error);
+    next(error);
+  }
+};
+
+// ==========================
+// 📋 Mostrar todas las propiedades
+// ==========================
+const mostrarPropiedades = async (req, res, next) => {
+  try {
+    const propiedades = await Propiedad.find({});
+    
+    // 🛠️ CAMBIO 2: Mapear fotos para que el frontend reciba la URL completa
+    const propiedadesConUrl = propiedades.map(propiedad => {
+        const p = propiedad.toObject();
+        if (p.fotos) {
+            p.fotos = p.fotos.map(foto => foto.startsWith('http') ? foto : `${urlBackend}/uploads/propiedades/${foto}`);
+        }
+        return p;
+    });
+
+    res.json(propiedadesConUrl);
+  } catch (error) {
+    console.log(error);
+    next(error);
+  }
+};
+
+// ==========================
+// 🔎 Mostrar una propiedad por ID
+// ==========================
+const mostrarPropiedad = async (req, res, next) => {
+  try {
+    const propiedad = await Propiedad.findById(req.params.idPropiedad);
+    if (!propiedad) {
+      return res.status(404).json({ mensaje: 'Esa propiedad no existe' });
+    }
+
+    // 🛠️ CAMBIO 3: Mapear fotos en la vista individual
+    const p = propiedad.toObject();
+    if (p.fotos) {
+        p.fotos = p.fotos.map(foto => foto.startsWith('http') ? foto : `${urlBackend}/uploads/propiedades/${foto}`);
+    }
+
+    res.json(p);
+  } catch (error) {
+    console.log(error);
+    next(error);
+  }
+};
+
+// ==========================
+// ✏️ Actualizar propiedad
+// ==========================
+const actualizarPropiedad = async (req, res, next) => {
+  try {
+    const propiedadExistente = await Propiedad.findById(req.params.idPropiedad);
+    if (!propiedadExistente) {
+      return res.status(404).json({ mensaje: "Propiedad no encontrada" });
+    }
+
+    let datosActualizados = { ...req.body };
+    let imagenesFinales = [];
+
+    if (req.body.fotosExistentes) {
+      // Limpiar las URLs completas para guardar solo el nombre del archivo en la DB
+      const fotosLimpias = (Array.isArray(req.body.fotosExistentes) 
+        ? req.body.fotosExistentes 
+        : [req.body.fotosExistentes]).map(f => f.split('/').pop());
+      
+      imagenesFinales = [...fotosLimpias];
+    }
+    
+    const totalNuevasImagenes = req.files ? req.files.length : 0;
+    const totalImagenesFinales = imagenesFinales.length + totalNuevasImagenes;
+
+    if (totalImagenesFinales > 5) {
+        return res.status(400).json({ mensaje: `No se puede superar el límite de 5 imágenes por propiedad.` });
+    }
+    
+    const imagenesAnteriores = propiedadExistente.fotos || [];
+    const imagenesAEliminar = imagenesAnteriores.filter(
+      (imagen) => !imagenesFinales.includes(imagen)
+    );
+
+    for (const filename of imagenesAEliminar) {
+      const rutaArchivo = path.join(uploadDirectory, filename);
+      if (fs.existsSync(rutaArchivo)) {
+          fs.unlink(rutaArchivo, (err) => {
+            if (err) console.error(`Error al eliminar: ${filename}`, err);
+          });
+      }
+    }
+
+    if (req.files && req.files.length > 0) {
+      const nuevosFilenames = req.files.map(file => file.filename);
+      imagenesFinales = [...imagenesFinales, ...nuevosFilenames];
+    }
+
+    datosActualizados.fotos = imagenesFinales;
+
+    const propiedadActualizada = await Propiedad.findOneAndUpdate(
+      { _id: req.params.idPropiedad },
+      { $set: datosActualizados },
+      { new: true }
+    );
+
+    res.json(propiedadActualizada);
+
+  } catch (error) {
+    console.error('Error actualizando propiedad:', error);
+    res.status(500).json({ mensaje: 'Error interno del servidor' });
+  }
+};
+
+// ==========================
+// 🗑️ Eliminar propiedad y sus imágenes
+// ==========================
+const eliminarPropiedad = async (req, res, next) => {
+  try {
+    const propiedad = await Propiedad.findById(req.params.idPropiedad);
+
+    if (!propiedad) {
+      return res.status(404).json({ mensaje: 'Propiedad no encontrada' });
+    }
+
+    if (propiedad.fotos && propiedad.fotos.length > 0) {
+      for (const filename of propiedad.fotos) {
+        const rutaArchivo = path.join(uploadDirectory, filename);
+        if (fs.existsSync(rutaArchivo)) {
+            fs.unlink(rutaArchivo, (err) => {
+              if (err) console.error(`⚠️ Error al eliminar: ${filename}`, err);
+            });
+        }
+      }
+    }
+
+    await Propiedad.findByIdAndDelete(req.params.idPropiedad);
+    res.json({ mensaje: 'Propiedad eliminada junto con sus imágenes 🧹' });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ mensaje: 'Error interno del servidor' });
+  }
+};
+
+export default {
+  subirArchivo,
+  nuevaPropiedad,
+  mostrarPropiedades,
+  mostrarPropiedad,
+  actualizarPropiedad,
+  eliminarPropiedad
+};
+
+
+/*import path from 'path';
+import Propiedad from '../models/Propiedad.js';
+import multer from 'multer';
+import { nanoid } from 'nanoid';
+import fs from 'fs';
+
+// dirname en ESModules
+const __dirname = path.resolve();
+const uploadDirectory = path.join(__dirname, 'uploads', 'propiedades');
+
 
 // ==========================
 // 📂 Configuración de Multer
@@ -214,3 +443,4 @@ export default {
   actualizarPropiedad,
   eliminarPropiedad
 };
+*/

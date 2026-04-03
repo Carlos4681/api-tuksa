@@ -73,4 +73,4 @@ app.listen(port, host, () => {
 
 
 
-
+//git clean -fd node_modules/ esto es para borrar la carpeta de node_modules y no se suba al git
